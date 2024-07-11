@@ -31,6 +31,7 @@ def getMostPlayed(playerID : int, client_id : int, client_secret : str, count : 
     idArray = np.empty(count, np.uint32)
     session = requests.session()
 
+    print("Scanning API for beatmaps")
     for i in range(0, count, 100):
         params['offset'] = i
         params['limit'] = i+100
@@ -43,11 +44,14 @@ def getMostPlayed(playerID : int, client_id : int, client_secret : str, count : 
             mapID = resp.get('beatmap_id')
             idArray[counter+i] = mapID
 
+        print("Found {} out of {} beatmap(s)".format(idArray.size, count))
+
     datatype = np.dtype([("hash", np.dtype("<S32")), (("id"), (np.uint32))])
     beatmap = np.empty(count, dtype=datatype)
     mapC = 0
     i = 0
     arraySize = idArray.size // 50
+    print("Standby while lots of API calls are made...")
     if arraySize == 0:
         arraySize = 50
     while i < arraySize:
@@ -55,7 +59,7 @@ def getMostPlayed(playerID : int, client_id : int, client_secret : str, count : 
         mapCounter = i * 50 + 50
         
         params['ids[]'] = idArray[i*50:mapCounter]
-        
+
         response = session.get(f'{API_URL}/beatmaps', params=params, headers=headers)
         
         response = response.json()
@@ -67,15 +71,15 @@ def getMostPlayed(playerID : int, client_id : int, client_secret : str, count : 
 
         i += 1
 
-
     np.save("beatmaps.npy", beatmap)
 
 
 def downloadBeatmapSet(setID: int, session: requests.session, forbidden : dict[int, int | None], downloadPath : str) -> None:
-    mapFile = session.get(f"https://api.chimu.moe/v1/download/{setID}").content
     mapName = session.get(f"https://api.chimu.moe/v1/set/{setID}").json()
-
     mapName = f'{mapName.get("SetId")} {mapName.get("Artist")} - {mapName.get("Title")}'.translate(forbidden)
+    print("Downloading: " + mapName)
+    
+    mapFile = session.get(f"https://api.chimu.moe/v1/download/{setID}").content
 
     with open(f"{downloadPath}{mapName}.osz", "wb") as f:
         f.write(mapFile)
@@ -93,14 +97,11 @@ def parseHashFromOsuDB(file) -> np.ndarray:
 
 
 def parseHashId(file = "beatmaps.npy") -> np.ndarray:
-
     data = np.load(file)
-
     return data
 
 
 def downloadMaps(osudbFile, downloadPath : str) -> None:
-
     with open(osudbFile, "rb") as osudbFile:
         hashs = parseHashFromOsuDB(osudbFile)
 
@@ -109,6 +110,8 @@ def downloadMaps(osudbFile, downloadPath : str) -> None:
     forbidden = str.maketrans("<>:\"/\\|?*", "_________")
     session = requests.session()
     downloadedIDs = []
+
+    print("Download path: \"" + downloadPath + "\"")
     for hash, id in ids:
         if np.where(hash == hashs)[0].size or id in downloadedIDs:
             continue
@@ -116,10 +119,18 @@ def downloadMaps(osudbFile, downloadPath : str) -> None:
         downloadBeatmapSet(id, session, forbidden, downloadPath)
         downloadedIDs.append(id)
 
+    print("Thank you for playing!")
 
 if __name__ == "__main__":
 
-    getMostPlayed(id, client_id, client_secret, count)
-    downloadMaps(osudbPath, downloadPath)
+    conf = {
+        "id": !,
+        "client_id": !,
+        "client_secret": "!",
+        "count": 300,
+        "osudbPath": "C:\\Users\\!\\AppData\\Local\\osu!\\osu!.db",
+        "downloadPath": "C:\\Users\\!\\Desktop\\osusongs"
+    }
 
-
+    getMostPlayed(conf["id"], conf["client_id"], conf["client_secret"], conf["count"])
+    downloadMaps(conf["osudbPath"], conf["downloadPath"])
